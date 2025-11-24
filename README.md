@@ -55,7 +55,7 @@ This is the starting data format the package expects:
   - class → arbitrary class code from CowLog (1 = ActiveSwim, 2 = SlowPaddle, etc.)
 
 ### 📄 Sample content (Mouse123.csv)
-```pgsql
+```csv
 time,code,class
 1.177,Active Swim Start,1
 232.478,Active Swim Stop,1
