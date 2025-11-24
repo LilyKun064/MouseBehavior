@@ -1,0 +1,112 @@
+---
+title: "Test"
+author: "Chenkun"
+date: "2025-11-24"
+output: html_document
+---
+
+```{r, Initialize variables}
+library(MouseBehavior)
+library(dplyr)
+
+# folder for video info
+dir_video_info <- "your_folder"
+
+# output file path
+dir_summary_info <- "your_path"
+
+# total time (minutes), here using 6 minutes as an example
+t <- 6
+
+# put your behavior codes here, using forced swim test as an example here
+behavior <- c("ActiveSwim", "SlowPaddle", "Float")
+
+# your desired output file name
+outputdataname <- "your_output_file_name"
+
+# list CSV files
+file_list <- list.files(
+  path       = dir_video_info,
+  pattern    = "\\.csv$",
+  full.names = TRUE
+)
+
+```
+
+```{r, Process files and summarise}
+# Initialize the summary data frame
+behavior_summary <- data.frame(MouseID = character(), stringsAsFactors = FALSE)
+
+for (path in file_list) {
+  filename <- basename(path)
+
+  # --- Load raw data and keep only needed columns ---
+  dat_raw <- read.csv(path, stringsAsFactors = FALSE)
+  dat_raw <- dat_raw[, c("time", "code", "class"), drop = FALSE]
+
+  # --- Basic structure check (replaces your "check for NO END files" columns logic) ---
+  mb_check_columns(dat_raw, filename = filename)
+
+  # --- Remove exact duplicate rows (replaces your "remove duplicated rows" loop) ---
+  dat_raw <- dat_raw[!duplicated(dat_raw), , drop = FALSE]
+
+  # --- Fix negative time jumps (replaces your "check and fix negative time difference") ---
+  if (nrow(dat_raw) > 1L) {
+    for (j in 2:nrow(dat_raw)) {
+      if (dat_raw$time[j] < dat_raw$time[j - 1]) {
+        dat_raw$time[j] <- dat_raw$time[j - 1]
+        warning(paste("Time at Row", j, "was fixed in FILE:", filename))
+      }
+    }
+  }
+
+  # --- Check duration, trim to t minutes, enforce END row ---
+  # This replaces your total_time / more_than_total_time / less_than_total_time block.
+  dat_clean <- mb_check_and_trim_time(dat_raw, filename = filename, t = t)
+
+  # --- Clean codes and add missing Stop events ---
+  # Replaces your manual code cleaning + new Stop rows loop.
+  dat_clean <- mb_clean_codes(dat_clean)
+  dat_clean <- mb_add_missing_stops(dat_clean)
+
+  # --- Derive MouseID from filename (same as your strsplit logic) ---
+  mouse_id <- mb_mouse_id_from_path(path)
+
+  # --- Summarise all behaviours for this file ---
+  current_file <- mb_summarise_file(
+    file      = dat_clean,
+    behaviors = behavior,
+    t         = t,
+    mouse_id  = mouse_id
+  )
+
+  # --- Append row to behavior_summary ---
+  behavior_summary <- dplyr::bind_rows(behavior_summary, current_file)
+}
+
+```
+
+```{r, print summary}
+print(paste("NUMBER OF FILES:", length(file_list)))
+print(paste("NAME OF OUTPUT FILE:", outputdataname))
+print("BEHAVIORS:")
+print(behavior)
+
+```
+
+```{r, check the summary}
+mb_check_behavior_summary(
+  behavior_summary = behavior_summary,
+  behaviors        = behavior,
+  t                = t
+)
+```
+
+```{r, fill NAs}
+behavior_summary <- mb_fill_na_summary(behavior_summary)
+```
+
+```{r, write output}
+output_file_path <- file.path(dir_summary_info, paste0(outputdataname, ".csv"))
+write.csv(behavior_summary, file = output_file_path, row.names = FALSE)
+```
